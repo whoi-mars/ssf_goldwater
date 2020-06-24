@@ -20,23 +20,29 @@ def image_name_to_audio_file_name(file):
     return audio_file_name
 
 
-if __name__ == "__main__":
+def create_data_set(labels_path, data_path, query):
 
-    # Relevant paths
-    LABELS_PATH = os.path.join("C:/Users/mgoldwater/Desktop/WHOI Storage/data", "labels_with_quality_and_channel.csv")
-    DATA_PATH = os.path.join("C:/Users/mgoldwater/Desktop/WHOI Storage/SAMBAY",
-                             "acoustic data",
-                             "multichannel_wav_1h")
+    """
+    Uses a csv file with the following columns -- File, Label, WindowN, Buffer, StartTime, EndTime, TimeShift,
+    and Channel -- in order to process audio data into spectrograms which are pickled and saved. Note that the
+    format of the File column is as follows: {yyyymmdd}-{hh}0000_multichannel_wav_SAMBAYu_selec_{selection number}.png.
+    This is the image of the spectrogram saved off during sorting for reference.
+
+
+    :param labels_path: Path to a csv file containing relevant information to retrieve the audio sample
+    :param data_path: Path the location where the pickled data is to be stored
+    :param query: Query string used to filter the labels csv as desired
+    """
 
     # Arrays to store images and labels
     X = []
     y = []
 
     # Read in the labels
-    labels = pd.read_csv(LABELS_PATH)
+    labels = pd.read_csv(labels_path)
 
     # Filter out only second and first highest quality recordings
-    labels = labels.query("Quality == '1' or Quality == '2'").reset_index()
+    labels = labels.query(query).reset_index()
 
     # Get number of rows
     rows = len(labels)
@@ -61,10 +67,10 @@ if __name__ == "__main__":
         wav_name = image_name_to_audio_file_name(file)
 
         # Produce the spectrogram
-        fs, samples_norm = spect.get_and_normalize_sound(os.path.join(DATA_PATH, wav_name))
-        starti, stopi = spect.range_to_indices(startTime - buffer + timeShift, endTime + buffer + timeShift, fs)
+        Fs, samples_norm = spect.get_and_normalize_sound(os.path.join(data_path, wav_name))
+        starti, stopi = spect.range_to_indices(startTime - buffer + timeShift, endTime + buffer + timeShift, Fs)
         samples = samples_norm[starti:stopi, channel]
-        _, _, Zxx, fs = spect.my_stft(samples, fs, window_N)
+        _, _, Zxx, fs = spect.my_stft(samples, Fs, window_N)
         Zxx = Zxx[round(Zxx.shape[0] / 2):, :]
         spectro = 10 * np.log10(np.abs(Zxx) ** 2)
 
@@ -78,3 +84,15 @@ if __name__ == "__main__":
     pickle.dump(X, f)
     pickle.dump(y, f)
     f.close()
+
+
+if __name__ == "__main__":
+
+    # Relevant paths
+    LABELS_PATH = os.path.join("C:/Users/mgoldwater/Desktop/WHOI Storage/data", "labels_with_quality_and_channel.csv")
+    DATA_PATH = os.path.join("C:/Users/mgoldwater/Desktop/WHOI Storage/SAMBAY",
+                             "acoustic data",
+                             "multichannel_wav_1h")
+
+    # Create the data set
+    create_data_set(LABELS_PATH, DATA_PATH, "Quality == '1' or Quality == '2'")
