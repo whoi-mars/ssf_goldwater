@@ -1,6 +1,12 @@
 import pandas as pd
 import os
 
+"""
+This is a quick script which adds a column from the original AllCalls_multichannel_t.txt file to
+the reduced and labeled csv file.
+"""
+
+
 # Path relevant paths
 LABELS_PATH = os.path.join("C:/Users/mgoldwater/Desktop/WHOI Storage/data", "labels_with_quality.csv")
 DATA_PATH = "C:/Users/mgoldwater/Desktop/WHOI Storage/data"
