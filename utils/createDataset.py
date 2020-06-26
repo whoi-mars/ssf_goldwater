@@ -1,6 +1,7 @@
 import utils.spect as spect
 import pandas as pd
 import numpy as np
+from PIL import Image
 import os
 import pickle
 
@@ -44,6 +45,9 @@ def create_data_set(labels_path, data_path, query):
     # Filter out only second and first highest quality recordings
     labels = labels.query(query).reset_index()
 
+    # Get the max delta time of the calls
+    max_dt = (labels['EndTime'] - labels['StartTime']).max()
+
     # Get number of rows
     rows = len(labels)
 
@@ -57,9 +61,9 @@ def create_data_set(labels_path, data_path, query):
         file = curr_row.File
         label = curr_row.Label
         window_N = curr_row.WindowNumber
-        buffer = curr_row.Buffer
+        buffer = 0.15  # currently overriding this with 0.15 so images have the same dimensions
         startTime = curr_row.StartTime
-        endTime = curr_row.EndTime
+        endTime = startTime + max_dt  # currently overriding this with max duration to make images have same dimensions
         timeShift = curr_row.TimeShift
         channel = curr_row.Channel - 1
 
@@ -74,12 +78,22 @@ def create_data_set(labels_path, data_path, query):
         Zxx = Zxx[round(Zxx.shape[0] / 2):, :]
         spectro = 10 * np.log10(np.abs(Zxx) ** 2)
 
+        # Crop image
+        spectro = spectro[0 + 32:632 + 32]
+
+        # Resize image
+        spectro = Image.fromarray(spectro)
+        spectro = spectro.resize(size=(150, 150))
+        spectro = np.array(spectro)
+
         # Store spectrogram and label
         X.append(spectro)
         y.append(label)
 
         print("| example: {}/{}".format(row + 1, rows))
 
+    # Pickle the data
+    # TODO: Potentially use numpy.save() instead of pickle
     f = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/spectrogram_data_qual_1_2", "wb")
     pickle.dump(X, f)
     pickle.dump(y, f)
