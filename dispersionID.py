@@ -26,6 +26,24 @@ y = np.asarray(y)
 # Add "batch" dimension
 X = X[:, :, :, np.newaxis]
 
+##
+""" Function to shuffle data and labels in unison"""
+
+
+def shuffle_in_unison(X, y):
+    rng_state = np.random.get_state()
+    np.random.shuffle(X)
+    np.random.set_state(rng_state)
+    np.random.shuffle(y)
+    return X, y
+
+
+##
+""" Split data """
+
+# Shuffle
+X, y = shuffle_in_unison(X, y)
+
 # Percent training data
 train_perc = 0.8
 
@@ -123,11 +141,38 @@ model.summary()
 ##
 """ Train the model """
 
-EPOCHS = 10
-history = model.fit_generator(
+EPOCHS = 3
+history = model.fit(
     train_data_gen,
     steps_per_epoch=int(np.ceil(num_train / float(BATCH_SIZE))),
     epochs=EPOCHS
 )
 
 ##
+""" Visualize the results of training """
+
+acc = history.history['accuracy']
+
+loss = history.history['loss']
+
+epochs_range = range(EPOCHS)
+
+plt.figure(figsize=(8, 8))
+plt.subplot(1, 2, 1)
+plt.plot(epochs_range, acc, label="Training Accuracy")
+plt.legend(loc='lower right')
+plt.title('Training Accuracy')
+
+plt.subplot(1, 2, 2)
+plt.plot(epochs_range, loss, label="Training Loss")
+plt.legend(loc='lower right')
+plt.title('Training Loss')
+plt.show()
+
+##
+""" Test model on the test data """
+
+y_pred = model.predict(test_data_gen)
+y_pred = np.argmax(y_pred, axis=1)
+
+print("Test Accuracy: {:.2f}%".format(np.mean(y_pred == y_test)*100))
