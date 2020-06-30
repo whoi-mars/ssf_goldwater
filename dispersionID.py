@@ -20,11 +20,16 @@ X = pickle.load(f)
 y = pickle.load(f)
 f.close()
 
+# TODO: Do this when generating the data
 X = np.asarray(X)
 y = np.asarray(y)
 
 # Add "batch" dimension
 X = X[:, :, :, np.newaxis]
+
+# Normalize each image by its square sum
+square_sum = np.sum(np.sum(X ** 2, axis=1), axis=1)[:, np.newaxis, np.newaxis]
+X = X / square_sum
 
 ##
 """ Function to shuffle data and labels in unison"""
@@ -53,30 +58,30 @@ y_train = y[:round(len(X)*train_perc)]
 
 
 # Create test data
-X_test = X[round(len(X)*train_perc):]
-y_test = y[round(len(X)*train_perc):]
+X_val = X[round(len(X)*train_perc):]
+y_val = y[round(len(X)*train_perc):]
 
 class_names = ['other', 'disp_2']
 
 num_train = len(X_train)
-num_test = len(X_test)
+num_val = len(X_val)
 
 ##
 """ Define model parameters """
 
 BATCH_SIZE = 32  # Number of training examples to process before updating model parameters
-IMG_SHAPE = 150  # Data consists of images 1024 X 632 pixels
+IMG_SHAPE = 128  # Data consists of images 1024 X 632 pixels
 
 ##
 """ Generate image data set """
 
 # Create image generator objects
 train_image_generator = ImageDataGenerator()
-test_image_generator = ImageDataGenerator()
+val_image_generator = ImageDataGenerator()
 
 # Use object to create data set
 train_data_gen = train_image_generator.flow(X_train, y_train, batch_size=BATCH_SIZE, shuffle=True)
-test_data_gen = test_image_generator.flow(X_test, y_test, batch_size=BATCH_SIZE, shuffle=False)
+val_data_gen = val_image_generator.flow(X_val, y_val, batch_size=BATCH_SIZE, shuffle=False)
 
 
 ##
@@ -109,7 +114,7 @@ plotImages(sample_images[:9], sample_labels[:9])
 """ Define the model """
 
 model = tf.keras.models.Sequential([
-    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(150, 150, 1)),
+    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_SHAPE, IMG_SHAPE, 1)),
     tf.keras.layers.MaxPooling2D(2, 2),
 
     tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
@@ -129,7 +134,7 @@ model = tf.keras.models.Sequential([
 ##
 """ Compule the model """
 
-model.compile(optimizer='adam',
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
               metrics=['accuracy'])
 
@@ -141,38 +146,37 @@ model.summary()
 ##
 """ Train the model """
 
-EPOCHS = 3
+EPOCHS = 5
 history = model.fit(
     train_data_gen,
     steps_per_epoch=int(np.ceil(num_train / float(BATCH_SIZE))),
-    epochs=EPOCHS
+    epochs=EPOCHS,
+    validation_data=val_data_gen
 )
 
 ##
 """ Visualize the results of training """
 
 acc = history.history['accuracy']
+val_acc = history.history['val_accuracy']
 
 loss = history.history['loss']
+val_loss = history.history['val_loss']
 
 epochs_range = range(EPOCHS)
 
 plt.figure(figsize=(8, 8))
 plt.subplot(1, 2, 1)
 plt.plot(epochs_range, acc, label="Training Accuracy")
+plt.plot(epochs_range, val_acc, label="Validation Accuracy")
 plt.legend(loc='lower right')
-plt.title('Training Accuracy')
+plt.title('Training and Validation Accuracy')
 
 plt.subplot(1, 2, 2)
 plt.plot(epochs_range, loss, label="Training Loss")
+plt.plot(epochs_range, val_loss, label="Validation Loss")
 plt.legend(loc='lower right')
-plt.title('Training Loss')
+plt.title('Training and Validation Loss')
 plt.show()
 
 ##
-""" Test model on the test data """
-
-y_pred = model.predict(test_data_gen)
-y_pred = np.argmax(y_pred, axis=1)
-
-print("Test Accuracy: {:.2f}%".format(np.mean(y_pred == y_test)*100))
