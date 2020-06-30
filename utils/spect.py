@@ -10,8 +10,7 @@ import os
 # ------------------ Important constants ------------------------ #
 
 MAX_INT_16 = 2 ** 15 - 1  # Maximum integer represented with 8 bits
-NFFT = 2048  # fft size for spectrogram computation
-SECONDS_PER_HOUR = 3600  # Number of second in an hour
+NFFT = 2 ** 8  # fft size for spectrogram computation
 SECONDS_PER_MINUTE = 60  # Number of seconds in a minute
 DECIMATE_FACTOR = 4  # Factor used to decimate the signal
 
@@ -89,7 +88,7 @@ def parse_begin_date_and_time(row):
     return time_start, time_stop, file_name
 
 
-def my_stft(samples, fs, window_N):
+def my_stft(samples, fs, window_N, window_overlap=1):
 
     """
     Creates spectrogram from the provided data.
@@ -119,7 +118,7 @@ def my_stft(samples, fs, window_N):
 
     # Create custom window and calculate stft
     window = hamming(window_N)
-    _, _, Zxx = stft(s, nfft=NFFT, return_onesided=False, window=window, nperseg=window_N, noverlap=window_N-1)
+    _, _, Zxx = stft(s, nfft=NFFT, return_onesided=False, window=window, nperseg=window_N, noverlap=window_N-window_overlap)
 
     # Get power spectrum
     Zxx = abs(Zxx) ** 2
@@ -150,7 +149,7 @@ if __name__ == "__main__":
                   'Localization']
 
     # Loop indices to plot a spectrogram for each row in the dataframe
-    for call in [1129 - 7]:
+    for call in [30]:
 
         # Get current row and the name of the corresponding file
         curr_row = df.loc[call]
@@ -163,7 +162,7 @@ if __name__ == "__main__":
 
         # Get the start and end time of the call, and add a 0.5 [s] buffer on either side.
         # Then, convert these times to indices in the vector
-        starti, stopi = range_to_indices(start_time - 0.1, stop_time + 0.1, fs)
+        starti, stopi = range_to_indices(start_time - 0.15, start_time + 0.334 + 0.15, fs)
 
         # Get the channel, subtracting one for indexing purposes
         channel = curr_row.Channel - 1
@@ -173,13 +172,14 @@ if __name__ == "__main__":
 
         # Calculate the stft
         window_N = 31
-        time, freq, Zxx, fs = my_stft(samples, fs, window_N)
-        spectro = np.abs(Zxx) ** 2
+        time, freq, Zxx, fs = my_stft(samples, fs, window_N, window_overlap=5)
+        spectro = 10 * np.log10(np.abs(Zxx) ** 2)
+        spectro = spectro[round(spectro.shape[0] / 2):, :]
+
+        print(spectro.shape)
 
         # Plot the figure
         plt.figure()
-        # plt.imshow(10 * np.log10(spectro), aspect='auto')
-        # plt.ylim(spectro.shape[0], spectro.shape[0] / 2)
-        plt.pcolormesh(time, freq, 10 * np.log10(Zxx))
-        plt.ylim(0, fs / 2)
+        plt.imshow(spectro)
+        plt.ylim(spectro.shape[0], spectro.shape[0] / 2)
         plt.show()
