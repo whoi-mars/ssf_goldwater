@@ -63,7 +63,7 @@ def create_data_set(labels_path, data_path, query):
         window_N = curr_row.WindowNumber
         buffer = 0.15  # currently overriding this with 0.15 so images have the same dimensions
         startTime = curr_row.StartTime
-        endTime = startTime + max_dt  # currently overriding this with max duration to make images have same dimensions
+        endTime = startTime + 0.334  # currently overriding this with max duration to make images have same dimensions
         timeShift = curr_row.TimeShift
         channel = curr_row.Channel - 1
 
@@ -74,21 +74,23 @@ def create_data_set(labels_path, data_path, query):
         Fs, samples_norm = spect.get_and_normalize_sound(os.path.join(data_path, wav_name))
         starti, stopi = spect.range_to_indices(startTime - buffer + timeShift, endTime + buffer + timeShift, Fs)
         samples = samples_norm[starti:stopi, channel]
-        _, _, Zxx, fs = spect.my_stft(samples, Fs, window_N)
+        _, _, Zxx, fs = spect.my_stft(samples, Fs, window_N, window_overlap=5)
         Zxx = Zxx[round(Zxx.shape[0] / 2):, :]
         spectro = 10 * np.log10(np.abs(Zxx) ** 2)
 
         # Crop image
-        spectro = spectro[0 + 32:632 + 32]
+        # spectro = spectro[0 + 32:632 + 32]
 
         # Resize image
-        spectro = Image.fromarray(spectro)
-        spectro = spectro.resize(size=(150, 150))
-        spectro = np.array(spectro)
+        # spectro = Image.fromarray(spectro)
+        # spectro = spectro.resize(size=(150, 150))
+        # spectro = np.array(spectro)
 
         # Store spectrogram and label
         X.append(spectro)
         y.append(label)
+
+        # TODO: Convert data and label arrays to numpy arrays
 
         print("| example: {}/{}".format(row + 1, rows))
 
