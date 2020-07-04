@@ -1,65 +1,39 @@
 ##
 """ Import libraries """
-
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+from sklearn.metrics import precision_score, recall_score
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
-import os
-
-# Disable GPU
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 ##
 """ Import the labeled data set"""
 
-f = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/spectrogram_data_qual_1_2", "rb")
-X = pickle.load(f)
-y = pickle.load(f)
-f.close()
+f1 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/train", "rb")
+X_train = pickle.load(f1)
+y_train = pickle.load(f1)
+f1.close()
 
-# TODO: Do this when generating the data
-X = np.asarray(X)
-y = np.asarray(y)
+f2 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/validation", "rb")
+X_val = pickle.load(f2)
+y_val = pickle.load(f2)
+f2.close()
 
-# Add "batch" dimension
-X = X[:, :, :, np.newaxis]
-
-# Normalize each image by its square sum
-square_sum = np.sum(np.sum(X ** 2, axis=1), axis=1)[:, np.newaxis, np.newaxis]
-X = X / square_sum
+# Add channel dimension
+X_train = X_train[:, :, :, np.newaxis]
+X_val = X_val[:, :, :, np.newaxis]
 
 ##
-""" Function to shuffle data and labels in unison"""
+""" Preprocess data """
 
+for i in range(len(X_train)):
+    X_train[i] = (X_train[i] - np.min(X_train[i])) / (np.max(X_train[i]) - np.min(X_train[i]))
 
-def shuffle_in_unison(X, y):
-    rng_state = np.random.get_state()
-    np.random.shuffle(X)
-    np.random.set_state(rng_state)
-    np.random.shuffle(y)
-    return X, y
-
-
-##
-""" Split data """
-
-# Shuffle
-X, y = shuffle_in_unison(X, y)
-
-# Percent training data
-train_perc = 0.8
-
-# Create training data
-X_train = X[:round(len(X)*train_perc)]
-y_train = y[:round(len(X)*train_perc)]
-
-
-# Create test data
-X_val = X[round(len(X)*train_perc):]
-y_val = y[round(len(X)*train_perc):]
+for i in range(len(X_val)):
+    X_val[i] = (X_val[i] - np.min(X_val[i])) / (np.max(X_val[i]) - np.min(X_val[i]))
 
 class_names = ['other', 'disp_2']
 
@@ -114,7 +88,13 @@ plotImages(sample_images[:9], sample_labels[:9])
 """ Define the model """
 
 model = tf.keras.models.Sequential([
-    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_SHAPE, IMG_SHAPE, 1)),
+    tf.keras.layers.Conv2D(8, (3, 3), activation='relu', input_shape=(IMG_SHAPE, IMG_SHAPE, 1)),
+    tf.keras.layers.MaxPooling2D(2, 2),
+
+    tf.keras.layers.Conv2D(16, (3, 3), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2, 2),
+
+    tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
     tf.keras.layers.MaxPooling2D(2, 2),
 
     tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
@@ -123,18 +103,17 @@ model = tf.keras.models.Sequential([
     tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
     tf.keras.layers.MaxPooling2D(2, 2),
 
-    tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
-    tf.keras.layers.MaxPooling2D(2, 2),
-
     tf.keras.layers.Flatten(),
-    tf.keras.layers.Dense(512, activation='relu'),
+    tf.keras.layers.Dropout(0.25),
+    tf.keras.layers.Dense(1024, activation='relu'),
+    tf.keras.layers.Dropout(0.25),
     tf.keras.layers.Dense(2)
 ])
 
 ##
 """ Compule the model """
 
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=5e-4),
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
               metrics=['accuracy'])
 
@@ -146,7 +125,7 @@ model.summary()
 ##
 """ Train the model """
 
-EPOCHS = 5
+EPOCHS = 30
 history = model.fit(
     train_data_gen,
     steps_per_epoch=int(np.ceil(num_train / float(BATCH_SIZE))),
@@ -167,16 +146,23 @@ epochs_range = range(EPOCHS)
 
 plt.figure(figsize=(8, 8))
 plt.subplot(1, 2, 1)
-plt.plot(epochs_range, acc, label="Training Accuracy")
-plt.plot(epochs_range, val_acc, label="Validation Accuracy")
+plt.plot(epochs_range, acc, '-o', label="Training Accuracy")
+plt.plot(epochs_range, val_acc, '-o', label="Validation Accuracy")
 plt.legend(loc='lower right')
 plt.title('Training and Validation Accuracy')
 
 plt.subplot(1, 2, 2)
-plt.plot(epochs_range, loss, label="Training Loss")
-plt.plot(epochs_range, val_loss, label="Validation Loss")
+plt.plot(epochs_range, loss, '-o', label="Training Loss")
+plt.plot(epochs_range, val_loss, '-o', label="Validation Loss")
 plt.legend(loc='lower right')
 plt.title('Training and Validation Loss')
 plt.show()
+
+##
+
+y_pred = model.predict(X_val)
+y_pred = np.argmax(y_pred, axis=1)
+
+print(precision_score(y_val, y_pred, average='binary'))
 
 ##
