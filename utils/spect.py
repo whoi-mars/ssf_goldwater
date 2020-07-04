@@ -10,9 +10,7 @@ import os
 # ------------------ Important constants ------------------------ #
 
 MAX_INT_16 = 2 ** 15 - 1  # Maximum integer represented with 8 bits
-NFFT = 2 ** 8  # fft size for spectrogram computation
 SECONDS_PER_MINUTE = 60  # Number of seconds in a minute
-DECIMATE_FACTOR = 4  # Factor used to decimate the signal
 
 # ------------------ Important constants ------------------------ #
 
@@ -88,7 +86,7 @@ def parse_begin_date_and_time(row):
     return time_start, time_stop, file_name
 
 
-def my_stft(samples, fs, window_N, window_overlap=1):
+def my_stft(samples, fs, window_N, window_overlap=1, NFFT=2048, DECIMATE_FACTOR=4):
 
     """
     Creates spectrogram from the provided data.
@@ -172,7 +170,7 @@ if __name__ == "__main__":
 
         # Calculate the stft
         window_N = 31
-        time, freq, Zxx, fs = my_stft(samples, fs, window_N, window_overlap=5)
+        time, freq, Zxx, fs = my_stft(samples, fs, window_N, window_overlap=5, NFFT=2 ** 8)
         spectro = 10 * np.log10(np.abs(Zxx) ** 2)
         spectro = spectro[round(spectro.shape[0] / 2):, :]
 
@@ -180,6 +178,6 @@ if __name__ == "__main__":
 
         # Plot the figure
         plt.figure()
-        plt.imshow(spectro)
+        plt.imshow(spectro, aspect='auto')
         plt.ylim(spectro.shape[0], spectro.shape[0] / 2)
         plt.show()
