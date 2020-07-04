@@ -1,10 +1,25 @@
 import utils.spect as spect
 import pandas as pd
 import numpy as np
-from PIL import Image
 import os
 import pickle
 
+
+def shuffle_in_unison(X, y):
+
+    """
+    Shuffles two arrays in unison.
+
+    :param X: First array
+    :param y: Second array
+    :return: Both arrays after being shuffled
+    """
+
+    rng_state = np.random.get_state()
+    np.random.shuffle(X)
+    np.random.set_state(rng_state)
+    np.random.shuffle(y)
+    return X, y
 
 def image_name_to_audio_file_name(file):
 
@@ -74,32 +89,47 @@ def create_data_set(labels_path, data_path, query):
         Fs, samples_norm = spect.get_and_normalize_sound(os.path.join(data_path, wav_name))
         starti, stopi = spect.range_to_indices(startTime - buffer + timeShift, endTime + buffer + timeShift, Fs)
         samples = samples_norm[starti:stopi, channel]
-        _, _, Zxx, fs = spect.my_stft(samples, Fs, window_N, window_overlap=5)
+        _, _, Zxx, fs = spect.my_stft(samples, Fs, window_N, window_overlap=5, NFFT=2 ** 8)
         Zxx = Zxx[round(Zxx.shape[0] / 2):, :]
         spectro = 10 * np.log10(np.abs(Zxx) ** 2)
 
-        # Crop image
-        # spectro = spectro[0 + 32:632 + 32]
-
-        # Resize image
-        # spectro = Image.fromarray(spectro)
-        # spectro = spectro.resize(size=(150, 150))
-        # spectro = np.array(spectro)
 
         # Store spectrogram and label
         X.append(spectro)
         y.append(label)
 
-        # TODO: Convert data and label arrays to numpy arrays
-
         print("| example: {}/{}".format(row + 1, rows))
+
+
+    # Convert to numpy arrays
+    X = np.asarray(X)
+    y = np.asarray(y)
+
+    # Shuffle the data
+    X, y = shuffle_in_unison(X, y)
+
+    # Percent training data
+    train_perc = 0.8
+
+    # Create training data
+    X_train = X[:round(len(X) * train_perc)]
+    y_train = y[:round(len(X) * train_perc)]
+
+    # Create test data
+    X_val = X[round(len(X) * train_perc):]
+    y_val = y[round(len(X) * train_perc):]
 
     # Pickle the data
     # TODO: Potentially use numpy.save() instead of pickle
-    f = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/spectrogram_data_qual_1_2", "wb")
-    pickle.dump(X, f)
-    pickle.dump(y, f)
-    f.close()
+    f1 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/train", "wb")
+    pickle.dump(X_train, f1)
+    pickle.dump(y_train, f1)
+    f1.close()
+
+    f2 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/validation", "wb")
+    pickle.dump(X_val, f2)
+    pickle.dump(y_val, f2)
+    f2.close()
 
 
 if __name__ == "__main__":
