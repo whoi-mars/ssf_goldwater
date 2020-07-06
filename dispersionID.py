@@ -1,9 +1,15 @@
 ##
 """ Import libraries """
+
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-from sklearn.metrics import precision_score, recall_score
+from sklearn.model_selection import KFold
+
+from sklearn.metrics import precision_score
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,33 +35,36 @@ X_val = X_val[:, :, :, np.newaxis]
 ##
 """ Preprocess data """
 
+# TODO: Vectorize
 for i in range(len(X_train)):
+    # rescale
     X_train[i] = (X_train[i] - np.min(X_train[i])) / (np.max(X_train[i]) - np.min(X_train[i]))
 
+# TODO: Vectorize
 for i in range(len(X_val)):
+    # rescale
     X_val[i] = (X_val[i] - np.min(X_val[i])) / (np.max(X_val[i]) - np.min(X_val[i]))
 
+# Concatenate train and validation data because we're using K-fold cross validation
+X = np.concatenate((X_train, X_val), axis=0)
+y = np.concatenate((y_train, y_val), axis=0)
+
+# Define per-fold score containers and histories
+acc_per_fold = []
+loss_per_fold = []
+history_per_fold = []
+precision_per_fold = []
+
+# Define array of class names
 class_names = ['other', 'disp_2']
 
-num_train = len(X_train)
-num_val = len(X_val)
 
 ##
 """ Define model parameters """
 
 BATCH_SIZE = 32  # Number of training examples to process before updating model parameters
 IMG_SHAPE = 128  # Data consists of images 1024 X 632 pixels
-
-##
-""" Generate image data set """
-
-# Create image generator objects
-train_image_generator = ImageDataGenerator()
-val_image_generator = ImageDataGenerator()
-
-# Use object to create data set
-train_data_gen = train_image_generator.flow(X_train, y_train, batch_size=BATCH_SIZE, shuffle=True)
-val_data_gen = val_image_generator.flow(X_val, y_val, batch_size=BATCH_SIZE, shuffle=False)
+NUM_FOLDS = 5
 
 
 ##
@@ -77,61 +86,87 @@ def plotImages(images_arr, labels_arr, dim=3):
 ##
 """ Plot sample images """
 
-# Grab a batch of images
-sample_images, sample_labels = next(train_data_gen)
-
 # Plot 9 images
-plotImages(sample_images[:9], sample_labels[:9])
+plotImages(X[:9], y[:9], dim=3)
 
 
 ##
-""" Define the model """
+""" Train and Evaluate K-Fold Model """
 
-model = tf.keras.models.Sequential([
-    tf.keras.layers.Conv2D(8, (3, 3), activation='relu', input_shape=(IMG_SHAPE, IMG_SHAPE, 1)),
-    tf.keras.layers.MaxPooling2D(2, 2),
+fold_no = 1
+kf = KFold(n_splits=NUM_FOLDS, shuffle=True)
+for train, val in kf.split(X):
 
-    tf.keras.layers.Conv2D(16, (3, 3), activation='relu'),
-    tf.keras.layers.MaxPooling2D(2, 2),
+    # Define the model
+    model = tf.keras.models.Sequential([
+        tf.keras.layers.Conv2D(8, (3, 3), activation='relu', input_shape=(IMG_SHAPE, IMG_SHAPE, 1)),
+        tf.keras.layers.MaxPooling2D(2, 2),
 
-    tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
-    tf.keras.layers.MaxPooling2D(2, 2),
+        tf.keras.layers.Conv2D(16, (3, 3), activation='relu'),
+        tf.keras.layers.MaxPooling2D(2, 2),
 
-    tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
-    tf.keras.layers.MaxPooling2D(2, 2),
+        tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
+        tf.keras.layers.MaxPooling2D(2, 2),
 
-    tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
-    tf.keras.layers.MaxPooling2D(2, 2),
+        tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+        tf.keras.layers.MaxPooling2D(2, 2),
 
-    tf.keras.layers.Flatten(),
-    tf.keras.layers.Dropout(0.25),
-    tf.keras.layers.Dense(1024, activation='relu'),
-    tf.keras.layers.Dropout(0.25),
-    tf.keras.layers.Dense(2)
-])
+        tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
+        tf.keras.layers.MaxPooling2D(2, 2),
 
-##
-""" Compule the model """
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.Dense(1024, activation='relu'),
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.Dense(2)
+    ])
 
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=5e-4),
-              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-              metrics=['accuracy'])
+    # Compile the model
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=5e-4),
+                  loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                  metrics=['accuracy'])
 
-##
-""" Model summary """
+    print("--------------------------------------------------------------------------------")
+    print("Training for fold {} ...".format(fold_no))
 
-model.summary()
+    # Train the model
+    EPOCHS = 30
+    history = model.fit(
+                X[train], y[train],
+                batch_size=BATCH_SIZE,
+                steps_per_epoch=int(np.ceil(len(train) / float(BATCH_SIZE))),
+                epochs=EPOCHS,
+                validation_data=(X[val], y[val])
+    )
 
-##
-""" Train the model """
+    # calculate fold loss/accuracy
+    loss_acc = model.evaluate(X[val], y[val], verbose=0)
 
-EPOCHS = 30
-history = model.fit(
-    train_data_gen,
-    steps_per_epoch=int(np.ceil(num_train / float(BATCH_SIZE))),
-    epochs=EPOCHS,
-    validation_data=val_data_gen
-)
+    # calculate fold precision
+    y_pred = model.predict(X[val])
+    y_pred = np.argmax(y_pred, axis=1)
+    prec = precision_score(y[val], y_pred, average='binary')
+
+    # Report and store fold metrics
+    print("Fold {} --> val_loss: {} - val_accuracy: {} - val_precision: {}".format(fold_no, loss_acc[0], loss_acc[1], prec))
+    acc_per_fold.append(loss_acc[1] * 100)
+    loss_per_fold.append(loss_acc[0])
+    history_per_fold.append(history)
+    precision_per_fold.append(prec)
+
+    # Iterate fold number
+    fold_no += 1
+
+# Provide average scores
+print("--------------------------------------------------------------------------------")
+print("Scores per fold")
+for i in range(len(acc_per_fold)):
+    print("Fold {} --> loss: {} - accuracy: {} - precision: {}".format(i + 1, loss_per_fold[i], acc_per_fold[i], precision_per_fold[i]))
+print("--------------------------------------------------------------------------------")
+print("Average scores for all folds")
+print("loss: {} - accuracy: {} - precision: {}".format(np.mean(loss_per_fold), np.mean(acc_per_fold), np.mean(precision_per_fold)))
+print("--------------------------------------------------------------------------------")
+
 
 ##
 """ Visualize the results of training """
@@ -157,12 +192,5 @@ plt.plot(epochs_range, val_loss, '-o', label="Validation Loss")
 plt.legend(loc='lower right')
 plt.title('Training and Validation Loss')
 plt.show()
-
-##
-
-y_pred = model.predict(X_val)
-y_pred = np.argmax(y_pred, axis=1)
-
-print(precision_score(y_val, y_pred, average='binary'))
 
 ##
