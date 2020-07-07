@@ -7,6 +7,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
+import utils.augmentSpects as augment
+
 from sklearn.model_selection import KFold
 
 from sklearn.metrics import precision_score
@@ -39,11 +41,13 @@ X_val = X_val[:, :, :, np.newaxis]
 for i in range(len(X_train)):
     # rescale
     X_train[i] = (X_train[i] - np.min(X_train[i])) / (np.max(X_train[i]) - np.min(X_train[i]))
+    X_train[i] = X_train[i] - np.mean(X_train[i])
 
 # TODO: Vectorize
 for i in range(len(X_val)):
     # rescale
     X_val[i] = (X_val[i] - np.min(X_val[i])) / (np.max(X_val[i]) - np.min(X_val[i]))
+    X_val[i] = X_val[i] - np.mean(X_val[i])
 
 # Concatenate train and validation data because we're using K-fold cross validation
 X = np.concatenate((X_train, X_val), axis=0)
@@ -54,6 +58,7 @@ acc_per_fold = []
 loss_per_fold = []
 history_per_fold = []
 precision_per_fold = []
+epochs_per_fold = []
 
 # Define array of class names
 class_names = ['other', 'disp_2']
@@ -91,6 +96,13 @@ plotImages(X[:9], y[:9], dim=3)
 
 
 ##
+""" Define the image generators for train and validation"""
+
+train_image_generator = ImageDataGenerator()
+validation_image_generator = ImageDataGenerator()
+
+
+##
 """ Train and Evaluate K-Fold Model """
 
 fold_no = 1
@@ -122,37 +134,50 @@ for train, val in kf.split(X):
     ])
 
     # Compile the model
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=5e-4),
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=8e-4),
                   loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
                   metrics=['accuracy'])
+
+    # Set up early stopping on val_loss
+    early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', mode='min', patience=3)
+
+    # Augment spectrograms for training data
+    X_aug = augment.augment_spectrograms(X[train])
+    X_train_aug = np.concatenate((X[train], X_aug), axis=0)
+    y_train_aug = np.concatenate((y[train], y[train]), axis=0)
+
+    # Generate training and validation sets
+    train_data_gen = train_image_generator.flow(X_train_aug, y_train_aug, batch_size=BATCH_SIZE, shuffle=True)
+    val_data_gen = validation_image_generator.flow(X[val], y[val], batch_size=BATCH_SIZE, shuffle=False)
 
     print("--------------------------------------------------------------------------------")
     print("Training for fold {} ...".format(fold_no))
 
     # Train the model
-    EPOCHS = 30
+    EPOCHS = 300
     history = model.fit(
-                X[train], y[train],
-                batch_size=BATCH_SIZE,
+                train_data_gen,
                 steps_per_epoch=int(np.ceil(len(train) / float(BATCH_SIZE))),
                 epochs=EPOCHS,
-                validation_data=(X[val], y[val])
+                validation_data=val_data_gen,
+                callbacks=[early_stopping]
     )
 
     # calculate fold loss/accuracy
-    loss_acc = model.evaluate(X[val], y[val], verbose=0)
+    loss_acc = model.evaluate(val_data_gen, verbose=0)
 
     # calculate fold precision
-    y_pred = model.predict(X[val])
+    y_pred = model.predict(val_data_gen)
     y_pred = np.argmax(y_pred, axis=1)
     prec = precision_score(y[val], y_pred, average='binary')
 
     # Report and store fold metrics
-    print("Fold {} --> val_loss: {} - val_accuracy: {} - val_precision: {}".format(fold_no, loss_acc[0], loss_acc[1], prec))
+    print("Fold {} --> val_loss: {} - val_accuracy: {} - val_precision: {} - epochs: {}".format(fold_no, loss_acc[0], loss_acc[1], prec, len(history.history['loss'])))
     acc_per_fold.append(loss_acc[1] * 100)
     loss_per_fold.append(loss_acc[0])
     history_per_fold.append(history)
     precision_per_fold.append(prec)
+    epochs_per_fold.append(len(history.history['loss']))
 
     # Iterate fold number
     fold_no += 1
@@ -161,36 +186,38 @@ for train, val in kf.split(X):
 print("--------------------------------------------------------------------------------")
 print("Scores per fold")
 for i in range(len(acc_per_fold)):
-    print("Fold {} --> loss: {} - accuracy: {} - precision: {}".format(i + 1, loss_per_fold[i], acc_per_fold[i], precision_per_fold[i]))
+    print("Fold {} --> loss: {} - accuracy: {} - precision: {} - epochs: {}".format(i + 1, loss_per_fold[i], acc_per_fold[i], precision_per_fold[i], epochs_per_fold[i]))
 print("--------------------------------------------------------------------------------")
 print("Average scores for all folds")
-print("loss: {} - accuracy: {} - precision: {}".format(np.mean(loss_per_fold), np.mean(acc_per_fold), np.mean(precision_per_fold)))
+print("loss: {} - accuracy: {} - precision: {} - epochs: {}".format(np.mean(loss_per_fold), np.mean(acc_per_fold), np.mean(precision_per_fold), np.mean(epochs_per_fold)))
 print("--------------------------------------------------------------------------------")
 
 
 ##
 """ Visualize the results of training """
+for i in range(len(history_per_fold)):
 
-acc = history.history['accuracy']
-val_acc = history.history['val_accuracy']
+    history = history_per_fold[i]
 
-loss = history.history['loss']
-val_loss = history.history['val_loss']
+    acc = history.history['accuracy']
+    val_acc = history.history['val_accuracy']
 
-epochs_range = range(EPOCHS)
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
 
-plt.figure(figsize=(8, 8))
-plt.subplot(1, 2, 1)
-plt.plot(epochs_range, acc, '-o', label="Training Accuracy")
-plt.plot(epochs_range, val_acc, '-o', label="Validation Accuracy")
-plt.legend(loc='lower right')
-plt.title('Training and Validation Accuracy')
+    epochs_range = range(len(acc))
 
-plt.subplot(1, 2, 2)
-plt.plot(epochs_range, loss, '-o', label="Training Loss")
-plt.plot(epochs_range, val_loss, '-o', label="Validation Loss")
-plt.legend(loc='lower right')
-plt.title('Training and Validation Loss')
-plt.show()
+    plt.figure()
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs_range, acc, '-o', label="Training Accuracy")
+    plt.plot(epochs_range, val_acc, '-o', label="Validation Accuracy")
+    plt.legend(loc='lower right')
+    plt.title('Training and Validation Accuracy')
 
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs_range, loss, '-o', label="Training Loss")
+    plt.plot(epochs_range, val_loss, '-o', label="Validation Loss")
+    plt.legend(loc='lower right')
+    plt.title('Training and Validation Loss')
+    plt.show()
 ##
