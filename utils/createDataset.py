@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 import pickle
+import time
 
 
 def shuffle_in_unison(X, y):
@@ -20,6 +21,7 @@ def shuffle_in_unison(X, y):
     np.random.set_state(rng_state)
     np.random.shuffle(y)
     return X, y
+
 
 def image_name_to_audio_file_name(file):
 
@@ -132,6 +134,59 @@ def create_data_set(labels_path, data_path, query):
     f2.close()
 
 
+def create_data_set_timeseries(labels_path, data_path):
+    """
+    Uses a csv file with the following columns -- File, Label, WindowN, Buffer, StartTime, EndTime, TimeShift,
+    and Channel -- in order to save the timeseries of the calls. Note that the format of the File column is as
+    follows: {yyyymmdd}-{hh}0000_multichannel_wav_SAMBAYu_selec_{selection number}.png. This is the image of the
+    spectrogram saved off during sorting for reference.
+
+
+    :param labels_path: Path to a csv file containing relevant information to retrieve the audio sample
+    :param data_path: Path the location where the pickled data is to be stored
+    :param query: Query string used to filter the labels csv as desired
+    """
+
+    # Read in the labels
+    labels = pd.read_csv(labels_path)
+
+    # Get number of rows
+    rows = len(labels)
+
+    # Iterate through the examples
+    for row in range(rows):
+
+        # Get current row
+        curr_row = labels.loc[row]
+
+        # Get relevant variables
+        file = curr_row.File
+        selec = file.split("_selec_")[1].split('.')[0]
+        label = curr_row.Label
+        buffer = curr_row.Buffer  # currently overriding this with 0.15 so images have the same dimensions
+        startTime = curr_row.StartTime
+        endTime = curr_row.EndTime  # currently overriding this with max duration to make images have same dimensions
+        timeShift = curr_row.TimeShift
+        channel = curr_row.Channel - 1
+
+        # Parse name of audio file
+        wav_name = image_name_to_audio_file_name(file)
+
+        # Produce the spectrogram
+        Fs, samples = spect.get_and_normalize_sound(os.path.join(data_path, wav_name), normalize=False)
+        starti, stopi = spect.range_to_indices(startTime - buffer + timeShift, endTime + buffer + timeShift, Fs)
+        samples = samples[starti:stopi, channel]
+
+        # Pickle the data
+        # TODO: Potentially use numpy.save() instead of pickle
+        f = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/for_eva/ind_calls/selection_{}".format(selec), "wb")
+        pickle.dump(samples, f)
+        pickle.dump(label, f)
+        f.close()
+
+        print("| example: {}/{}".format(row + 1, rows))
+
+
 if __name__ == "__main__":
 
     # Relevant paths
@@ -141,4 +196,7 @@ if __name__ == "__main__":
                              "multichannel_wav_1h")
 
     # Create the data set
-    create_data_set(LABELS_PATH, DATA_PATH, "Quality == '1' or Quality == '2'")
+    #create_data_set(LABELS_PATH, DATA_PATH, "Quality == '1' or Quality == '2'")
+
+    # Create timeseries data set
+    create_data_set_timeseries(LABELS_PATH, DATA_PATH)
