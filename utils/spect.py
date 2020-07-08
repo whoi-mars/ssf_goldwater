@@ -32,7 +32,7 @@ def range_to_indices(start_t, stop_t, fs):
     return int(round(start_t * fs)), int(round(stop_t * fs))
 
 
-def get_and_normalize_sound(file_path, max_int=MAX_INT_16):
+def get_and_normalize_sound(file_path, max_int=MAX_INT_16, normalize=True):
 
     """
         Gets desired sound file and normalizes it to largest possible integer.
@@ -46,7 +46,10 @@ def get_and_normalize_sound(file_path, max_int=MAX_INT_16):
 
     sample_rate, samples = wavfile.read(file_path)
 
-    return sample_rate, np.divide(samples, max_int)
+    if normalize:
+        samples = np.divide(samples, max_int)
+
+    return sample_rate, samples
 
 
 def parse_begin_date_and_time(row):
