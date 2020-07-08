@@ -17,7 +17,7 @@ def augment_spectrograms(X):
 
     for i in range(len(X)):
 
-        zoom = np.random.uniform(0.6, 1.0)
+        zoom = 1  # np.random.uniform(0.65, 1.0)
         width_shift = np.random.uniform(0, 45)
 
         X_aug[i] = apply_affine_transform(X[i], zx=zoom, zy=zoom, ty=-width_shift, fill_mode='wrap')
