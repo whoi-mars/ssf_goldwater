@@ -17,10 +17,11 @@ def augment_spectrograms(X):
 
     for i in range(len(X)):
 
-        zoom = 1  # np.random.uniform(0.65, 1.0)
-        width_shift = np.random.uniform(0, 45)
+        # Augmentation parameters
+        width_shift = np.random.uniform(0, 55)
 
-        X_aug[i] = apply_affine_transform(X[i], zx=zoom, zy=zoom, ty=-width_shift, fill_mode='wrap')
+        # Shift
+        X_aug[i] = apply_affine_transform(X[i], ty=-width_shift, fill_mode='wrap')
 
     return X_aug
 
