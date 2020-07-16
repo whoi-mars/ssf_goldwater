@@ -22,8 +22,9 @@ import pickle
 """ Define some helper functions """
 
 
-def plot_images(images_arr, labels_arr, dim=3):
-    fig, axes = plt.subplots(dim, dim, figsize=(6, 6))
+def plot_images(images_arr, labels_arr, dim=(3, 3)):
+
+    fig, axes = plt.subplots(dim[0], dim[1], figsize=(6, 6))
     axes = axes.flatten()
     i = 0
     for img, ax in zip(images_arr, axes):
@@ -46,6 +47,7 @@ def create_activation_model(model):
 
 
 def display_activation(activations, col_size, row_size, act_index):
+
     activation = activations[act_index]
     activation_index = 0
     fig, ax = plt.subplots(row_size, col_size, figsize=(row_size * 2.5, col_size * 1.5))
@@ -55,6 +57,15 @@ def display_activation(activations, col_size, row_size, act_index):
             activation_index += 1
 
     print(activation.shape)
+
+
+def shuffle_in_unison(X, y):
+
+    rng_state = np.random.get_state()
+    np.random.shuffle(X)
+    np.random.set_state(rng_state)
+    np.random.shuffle(y)
+    return X, y
 
 
 ##
@@ -70,9 +81,16 @@ X_val = pickle.load(f2)
 y_val = pickle.load(f2)
 f2.close()
 
+f3 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/noise/noise_data", "rb")
+X_noise = pickle.load(f3)
+y_noise = pickle.load(f3)
+y_noise = y_noise.astype(int)
+f3.close()
+
 # Add channel dimension
 X_train = X_train[:, :, :, np.newaxis]
 X_val = X_val[:, :, :, np.newaxis]
+X_noise = X_noise[:, :, :, np.newaxis]
 
 ##
 """ Preprocess data """
@@ -89,9 +107,18 @@ for i in range(len(X_val)):
     X_val[i] = (X_val[i] - np.min(X_val[i])) / (np.max(X_val[i]) - np.min(X_val[i]))
     X_val[i] = X_val[i] - np.mean(X_val[i])
 
+# TODO: Vectorize
+for i in range(len(X_noise)):
+    # rescale
+    X_noise[i] = (X_noise[i] - np.min(X_noise[i])) / (np.max(X_noise[i]) - np.min(X_noise[i]))
+    X_noise[i] = X_noise[i] - np.mean(X_noise[i])
+
 # Concatenate train and validation data because we're using K-fold cross validation
-X = np.concatenate((X_train, X_val), axis=0)
-y = np.concatenate((y_train, y_val), axis=0)
+X = np.concatenate((X_train, X_val, X_noise), axis=0)
+y = np.concatenate((y_train, y_val, y_noise), axis=0)
+
+# Shuffle the data
+X, y = shuffle_in_unison(X, y)
 
 # Define per-fold score containers and histories
 acc_per_fold = []
@@ -99,6 +126,7 @@ loss_per_fold = []
 history_per_fold = []
 precision_per_fold = []
 epochs_per_fold = []
+prec = []
 
 # Save correct/incorrect validation indices and
 # validation set indices
@@ -110,7 +138,7 @@ incorr_ind = []
 models_per_fold = []
 
 # Define array of class names
-class_names = ['other', 'disp_2']
+class_names = ['other', 'disp_2', 'noise']
 
 ##
 
@@ -125,7 +153,7 @@ NUM_FOLDS = 5
 """ Plot sample images """
 
 # Plot 9 images
-plot_images(X[:9], y[:9], dim=3)
+plot_images(X[:9], y[:9], dim=(3, 3))
 
 
 ##
@@ -145,11 +173,11 @@ for train, val in kf.split(X):
     # Define the model
     model = tf.keras.models.Sequential([
 
-        tf.keras.layers.Conv2D(8, (3, 3), activation='relu'),
+        tf.keras.layers.Conv2D(8, (9, 9), activation='relu', input_shape=(IMG_SHAPE, IMG_SHAPE, 1)),
         tf.keras.layers.MaxPooling2D(2, 2),
         tf.keras.layers.Dropout(0.2),
 
-        tf.keras.layers.Conv2D(16, (3, 3), activation='relu'),
+        tf.keras.layers.Conv2D(16, (7, 7), activation='relu'),
         tf.keras.layers.MaxPooling2D(2, 2),
         tf.keras.layers.Dropout(0.2),
 
@@ -171,7 +199,7 @@ for train, val in kf.split(X):
         tf.keras.layers.Dense(1024, activation='relu'),
         tf.keras.layers.Dropout(0.5),
         tf.keras.layers.Dense(1024, activation='relu'),
-        tf.keras.layers.Dense(2)
+        tf.keras.layers.Dense(3)
     ])
 
     # Compile the model
@@ -196,7 +224,7 @@ for train, val in kf.split(X):
     # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_name, histogram_freq=10, write_images=True)
 
     # Train the model
-    EPOCHS = 60
+    EPOCHS = 30
     history = model.fit(
                 train_data_gen,
                 steps_per_epoch=int(np.ceil(len(train) / float(BATCH_SIZE))),
@@ -211,7 +239,7 @@ for train, val in kf.split(X):
     # calculate fold precision
     y_pred = model.predict(val_data_gen)
     y_pred = np.argmax(y_pred, axis=1)
-    prec = precision_score(y[val], y_pred, average='binary')
+    prec = precision_score(y[val], y_pred, average=None)
 
     # store indices for correct and incorrect validation predictions
     val_sets.append(val)
@@ -229,7 +257,6 @@ for train, val in kf.split(X):
 
     # Iterate fold number
     fold_no += 1
-    break
 
 # Provide average scores
 print("--------------------------------------------------------------------------------")
@@ -238,7 +265,7 @@ for i in range(len(acc_per_fold)):
     print("Fold {} --> loss: {} - accuracy: {} - precision: {} - epochs: {}".format(i + 1, loss_per_fold[i], acc_per_fold[i], precision_per_fold[i], epochs_per_fold[i]))
 print("--------------------------------------------------------------------------------")
 print("Average scores for all folds")
-print("loss: {} - accuracy: {} - precision: {} - epochs: {}".format(np.mean(loss_per_fold), np.mean(acc_per_fold), np.mean(precision_per_fold), np.mean(epochs_per_fold)))
+print("loss: {} - accuracy: {} - precision: {} - epochs: {}".format(np.mean(loss_per_fold), np.mean(acc_per_fold), np.mean(precision_per_fold, axis=0), np.mean(epochs_per_fold)))
 print("--------------------------------------------------------------------------------")
 
 
@@ -273,7 +300,7 @@ for i in range(len(history_per_fold)):
 ##
 """ Pick fold number to analyze """
 
-fold_no = 1
+fold_no = 5
 
 ##
 
@@ -295,12 +322,18 @@ incorr_lbls = val_set_lbls[incorr_ind[fold_no - 1]]
 
 """ Plot incorrectly classified validation images """
 
-# Run incorretly classified images through the network
+# Run incorrectly classified images through the network
 y_pred = models_per_fold[fold_no - 1].predict(incorr_imgs)
 y_pred = np.argmax(y_pred, axis=1)
 
+# Sort incorrectly classified images by incorrectly classified class
+incorr_other_imgs = incorr_imgs[y_pred == 0]
+incorr_disp2_imgs = incorr_imgs[y_pred == 1]
+incorr_noise_imgs = incorr_imgs[y_pred == 2]
+
+
 # Plot results
-plot_images(incorr_imgs[0:9], y_pred[0:9], dim=3)
+plot_images(incorr_imgs[0:9], y_pred[0:9], dim=(3, 3))
 
 ##
 """ Create activations model to look at intermediate activations """
@@ -311,7 +344,7 @@ activation_model = create_activation_model(models_per_fold[fold_no - 1])
 """ Plot original image and intermediate activations """
 
 # Set image and activation layer
-image_num = 7
+image_num = 10
 activation_layer = 4
 
 # Plot original image
