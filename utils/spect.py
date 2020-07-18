@@ -121,9 +121,6 @@ def my_stft(samples, fs, window_N, window_overlap=1, NFFT=2048, DECIMATE_FACTOR=
     window = hamming(window_N)
     _, _, Zxx = stft(s, nfft=NFFT, return_onesided=False, window=window, nperseg=window_N, noverlap=window_N-window_overlap)
 
-    # Get power spectrum
-    Zxx = abs(Zxx) ** 2
-
     return time, freq, Zxx, fs
 
 
