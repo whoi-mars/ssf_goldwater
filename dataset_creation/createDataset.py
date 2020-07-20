@@ -61,9 +61,6 @@ def create_data_set(labels_path, data_path, query):
     # Filter out only second and first highest quality recordings
     labels = labels.query(query).reset_index()
 
-    # Get the max delta time of the calls
-    max_dt = (labels['EndTime'] - labels['StartTime']).max()
-
     # Get number of rows
     rows = len(labels)
 
@@ -195,7 +192,7 @@ if __name__ == "__main__":
                              "multichannel_wav_1h")
 
     # Create the data set
-    #create_data_set(LABELS_PATH, DATA_PATH, "Quality == '1' or Quality == '2'")
+    create_data_set(LABELS_PATH, DATA_PATH, "Quality == '1' or Quality == '2'")
 
     # Create timeseries data set
-    create_data_set_timeseries(LABELS_PATH, DATA_PATH)
+    #create_data_set_timeseries(LABELS_PATH, DATA_PATH)
