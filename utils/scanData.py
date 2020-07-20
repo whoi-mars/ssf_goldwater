@@ -1,21 +1,27 @@
-import tensorflow as tf
-import tensorflow_hub as hub
 import utils.spect as spect
 import pandas as pd
 import numpy as np
 import os
 
 
-def scan_audiofile(data_path, write_path, channel, model, mu, log_name, batch_size=50, batches=None, step_size=6000):
+def remap(x, oldMin, oldMax, newMin, newMax):
+    old_range = oldMax - oldMin
+    new_range = newMax - newMin
+    x = (((x - oldMin) * new_range) / old_range) + newMin
+    return x
+
+
+def scan_audiofile(data_path, write_path, channel, model, log_name, batch_size=50, batches=None, step_size=6000):
 
     # Create file to store discovered dispersive curves
     calls_CSV_path = os.path.join(write_path, log_name + ".csv")
     columns = ['File', 'StartSample', 'EndSample', 'Channel']
-    row_count = 0
     if os.path.exists(calls_CSV_path):
         calls_df = pd.read_csv(calls_CSV_path)
+        row_count = len(calls_df)
     else:
         calls_df = pd.DataFrame(columns=columns)
+        row_count = 0
 
     # Get audio file name
     file = data_path.split('/')[-1]
@@ -53,10 +59,7 @@ def scan_audiofile(data_path, write_path, channel, model, mu, log_name, batch_si
 
         for i in range(len(X)):
             # rescale
-            X[i] = (X[i] - np.min(X[i])) / (np.max(X[i]) - np.min(X[i]))
-
-        # Mean center using mean from training data
-        X = X - mu
+            X[i] = X[i] = remap(X[i], np.min(X[i]), np.max(X[i]), 0, 1)
 
         # Apply the model
         result_batch = model.predict(X)
@@ -71,7 +74,7 @@ def scan_audiofile(data_path, write_path, channel, model, mu, log_name, batch_si
             calls_df.loc[row_count] = row
             row_count += 1
 
-        print("Batch: {}/{}".format(batch + 1, batches))
+        print("Channel: {} -- Batch: {}/{}".format(channel, batch + 1, batches))
 
     # Save as CSV
     calls_df.to_csv(calls_CSV_path, index=False)
