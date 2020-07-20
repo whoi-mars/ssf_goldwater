@@ -8,7 +8,6 @@ import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras import models
 
-import utils.augmentSpects as augment
 
 from sklearn.model_selection import KFold
 
@@ -18,6 +17,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pickle
+import time
+
 ##
 """ Define some helper functions """
 
@@ -59,6 +60,27 @@ def display_activation(activations, col_size, row_size, act_index):
     print(activation.shape)
 
 
+def class_grid(X, y, class_num):
+
+    X = X[y == class_num][0:64]
+
+    plt.figure(figsize=(5, 5))
+    for i, image in enumerate(X):
+        plt.subplot(8, 8, i + 1)
+        plt.axis("off")
+        plt.imshow(image[:, :, 0], aspect='auto')
+
+    plt.subplots_adjust(hspace=0.1, wspace=0.1)
+    plt.show()
+
+
+def remap(x, oldMin, oldMax, newMin, newMax):
+    old_range = oldMax - oldMin
+    new_range = newMax - newMin
+    x = (((x - oldMin) * new_range) / old_range) + newMin
+    return x
+
+
 def shuffle_in_unison(X, y):
 
     rng_state = np.random.get_state()
@@ -81,7 +103,7 @@ X_val = pickle.load(f2)
 y_val = pickle.load(f2)
 f2.close()
 
-f3 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/noise/noise_data", "rb")
+f3 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/noise/noise", "rb")
 X_noise = pickle.load(f3)
 y_noise = pickle.load(f3)
 y_noise = y_noise.astype(int)
@@ -92,30 +114,35 @@ X_train = X_train[:, :, :, np.newaxis]
 X_val = X_val[:, :, :, np.newaxis]
 X_noise = X_noise[:, :, :, np.newaxis]
 
-##
-""" Preprocess data """
-
-# TODO: Vectorize
-for i in range(len(X_train)):
-    # rescale
-    X_train[i] = (X_train[i] - np.min(X_train[i])) / (np.max(X_train[i]) - np.min(X_train[i]))
-    X_train[i] = X_train[i] - np.mean(X_train[i])
-
-# TODO: Vectorize
-for i in range(len(X_val)):
-    # rescale
-    X_val[i] = (X_val[i] - np.min(X_val[i])) / (np.max(X_val[i]) - np.min(X_val[i]))
-    X_val[i] = X_val[i] - np.mean(X_val[i])
-
-# TODO: Vectorize
-for i in range(len(X_noise)):
-    # rescale
-    X_noise[i] = (X_noise[i] - np.min(X_noise[i])) / (np.max(X_noise[i]) - np.min(X_noise[i]))
-    X_noise[i] = X_noise[i] - np.mean(X_noise[i])
-
-# Concatenate train and validation data because we're using K-fold cross validation
+# Concatenate train, validation, and noise data because we're using K-fold cross validation
 X = np.concatenate((X_train, X_val, X_noise), axis=0)
 y = np.concatenate((y_train, y_val, y_noise), axis=0)
+
+# Define array of class names
+class_names = ['other', 'disp_2', 'noise']
+
+##
+
+""" Plot sample images """
+
+# Plot 9 images
+plot_images(X[:9], y[:9], dim=(3, 3))
+
+##
+
+""" Create large grid of images of a certain class"""
+
+class_num = class_names.index('noise')
+class_grid(X, y, class_num)
+
+##
+
+""" Preprocess data """
+
+for i in range(len(X)):
+    # rescale
+    X[i] = remap(X[i], np.min(X[i]), np.max(X[i]), 0, 1)
+
 
 # Shuffle the data
 X, y = shuffle_in_unison(X, y)
@@ -137,9 +164,6 @@ incorr_ind = []
 # Save models
 models_per_fold = []
 
-# Define array of class names
-class_names = ['other', 'disp_2', 'noise']
-
 ##
 
 """ Define model parameters """
@@ -147,14 +171,6 @@ class_names = ['other', 'disp_2', 'noise']
 BATCH_SIZE = 32  # Number of training examples to process before updating model parameters
 IMG_SHAPE = 128  # Data consists of images 1024 X 632 pixels
 NUM_FOLDS = 5
-
-
-##
-""" Plot sample images """
-
-# Plot 9 images
-plot_images(X[:9], y[:9], dim=(3, 3))
-
 
 ##
 """ Define the image generators for train and validation"""
@@ -173,23 +189,23 @@ for train, val in kf.split(X):
     # Define the model
     model = tf.keras.models.Sequential([
 
-        tf.keras.layers.Conv2D(8, (9, 9), activation='relu', input_shape=(IMG_SHAPE, IMG_SHAPE, 1)),
+        # tf.keras.layers.Conv2D(8, (9, 9), activation='relu', input_shape=(IMG_SHAPE, IMG_SHAPE, 1)),
+        # tf.keras.layers.MaxPooling2D(2, 2),
+        # tf.keras.layers.Dropout(0.2),
+
+        tf.keras.layers.Conv2D(16, (5, 5), activation='relu', input_shape=(IMG_SHAPE, IMG_SHAPE, 1)),
         tf.keras.layers.MaxPooling2D(2, 2),
         tf.keras.layers.Dropout(0.2),
 
-        tf.keras.layers.Conv2D(16, (7, 7), activation='relu'),
+        tf.keras.layers.Conv2D(32, (5, 5), activation='relu'),
         tf.keras.layers.MaxPooling2D(2, 2),
         tf.keras.layers.Dropout(0.2),
 
-        tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
+        tf.keras.layers.Conv2D(64, (5, 5), activation='relu'),
         tf.keras.layers.MaxPooling2D(2, 2),
         tf.keras.layers.Dropout(0.2),
 
-        tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
-        tf.keras.layers.MaxPooling2D(2, 2),
-        tf.keras.layers.Dropout(0.2),
-
-        tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
+        tf.keras.layers.Conv2D(128, (5, 5), activation='relu'),
         tf.keras.layers.MaxPooling2D(2, 2),
         tf.keras.layers.Dropout(0.2),
 
@@ -203,14 +219,9 @@ for train, val in kf.split(X):
     ])
 
     # Compile the model
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=5e-4),
                   loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
                   metrics=['accuracy'])
-
-    # Augment spectrograms for training data
-    # X_aug = augment.augment_spectrograms(X[train])
-    # X_train_aug = np.concatenate((X[train], X_aug), axis=0)
-    # y_train_aug = np.concatenate((y[train], y[train]), axis=0)
 
     # Generate training and validation sets
     train_data_gen = train_image_generator.flow(X[train], y[train], batch_size=BATCH_SIZE, shuffle=True)
@@ -224,7 +235,7 @@ for train, val in kf.split(X):
     # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_name, histogram_freq=10, write_images=True)
 
     # Train the model
-    EPOCHS = 30
+    EPOCHS = 50
     history = model.fit(
                 train_data_gen,
                 steps_per_epoch=int(np.ceil(len(train) / float(BATCH_SIZE))),
@@ -300,7 +311,7 @@ for i in range(len(history_per_fold)):
 ##
 """ Pick fold number to analyze """
 
-fold_no = 5
+fold_no = 1
 
 ##
 
@@ -371,3 +382,64 @@ ax.set_ylabel("Actual")
 ax.set_xlabel("Predicted")
 
 ##
+
+""" Train a model on all of the data """
+
+# Define the model
+model = tf.keras.models.Sequential([
+
+    # tf.keras.layers.Conv2D(8, (9, 9), activation='relu', input_shape=(IMG_SHAPE, IMG_SHAPE, 1)),
+    # tf.keras.layers.MaxPooling2D(2, 2),
+    # tf.keras.layers.Dropout(0.2),
+
+    tf.keras.layers.Conv2D(16, (5, 5), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    tf.keras.layers.Dropout(0.2),
+
+    tf.keras.layers.Conv2D(32, (5, 5), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    tf.keras.layers.Dropout(0.2),
+
+    tf.keras.layers.Conv2D(64, (5, 5), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    tf.keras.layers.Dropout(0.2),
+
+    tf.keras.layers.Conv2D(128, (5, 5), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    tf.keras.layers.Dropout(0.2),
+
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(1024, activation='relu'),
+    tf.keras.layers.Dropout(0.5),
+    tf.keras.layers.Dense(1024, activation='relu'),
+    tf.keras.layers.Dropout(0.5),
+    tf.keras.layers.Dense(1024, activation='relu'),
+    tf.keras.layers.Dense(3)
+])
+
+# Compile the model
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=5e-4),
+              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+              metrics=['accuracy'])
+
+# Generate training and validation sets
+train_data_gen = train_image_generator.flow(X, y, batch_size=BATCH_SIZE, shuffle=True)
+
+# Train the model
+EPOCHS = 34
+history = model.fit(
+            train_data_gen,
+            steps_per_epoch=int(np.ceil(len(X) / float(BATCH_SIZE))),
+            epochs=EPOCHS
+)
+##
+
+""" Save the model """
+
+# Use time to name the model
+t = time.time()
+
+# Save
+export_path_keras = "models/{}.h5".format(int(t))
+model.save(export_path_keras)
+
