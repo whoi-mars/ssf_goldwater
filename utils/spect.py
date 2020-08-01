@@ -160,7 +160,8 @@ if __name__ == "__main__":
 
         # Get the start and end time of the call, and add a 0.5 [s] buffer on either side.
         # Then, convert these times to indices in the vector
-        starti, stopi = range_to_indices(start_time - 0.15, start_time + 0.334 + 0.15, fs)
+        #starti, stopi = range_to_indices(start_time - 0.15, start_time + 0.334 + 0.15, fs)
+        starti, stopi = range_to_indices(start_time - 0.15, start_time + 0.211 + 0.15, fs)
 
         # Get the channel, subtracting one for indexing purposes
         channel = curr_row.Channel - 1
@@ -170,7 +171,7 @@ if __name__ == "__main__":
 
         # Calculate the stft
         window_N = 31
-        time, freq, Zxx, fs = my_stft(samples, fs, window_N, window_overlap=5, NFFT=2 ** 8)
+        time, freq, Zxx, fs = my_stft(samples, fs, window_N, window_overlap=2, NFFT=2 ** 9)
         spectro = 10 * np.log10(np.abs(Zxx) ** 2)
         spectro = spectro[round(spectro.shape[0] / 2):, :]
 
