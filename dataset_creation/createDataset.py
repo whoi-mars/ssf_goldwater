@@ -76,7 +76,7 @@ def create_data_set(labels_path, data_path, query):
         window_N = curr_row.WindowNumber
         buffer = 0.15  # currently overriding this with 0.15 so images have the same dimensions
         startTime = curr_row.StartTime
-        endTime = startTime + 0.334  # currently overriding this with max duration to make images have same dimensions
+        endTime = startTime + 0.211  # currently overriding this with max duration to make images have same dimensions
         timeShift = curr_row.TimeShift
         channel = curr_row.Channel - 1
 
@@ -87,7 +87,7 @@ def create_data_set(labels_path, data_path, query):
         Fs, samples_norm = spect.get_and_normalize_sound(os.path.join(data_path, wav_name))
         starti, stopi = spect.range_to_indices(startTime - buffer + timeShift, endTime + buffer + timeShift, Fs)
         samples = samples_norm[starti:stopi, channel]
-        _, _, Zxx, fs = spect.my_stft(samples, Fs, window_N, window_overlap=5, NFFT=2 ** 8)
+        _, _, Zxx, fs = spect.my_stft(samples, Fs, window_N, window_overlap=2, NFFT=2 ** 9)
         Zxx = Zxx[round(Zxx.shape[0] / 2):, :]
         spectro = 10 * np.log10(np.abs(Zxx) ** 2)
 
@@ -119,12 +119,12 @@ def create_data_set(labels_path, data_path, query):
 
     # Pickle the data
     # TODO: Potentially use numpy.save() instead of pickle
-    f1 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/train", "wb")
+    f1 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/train_256", "wb")
     pickle.dump(X_train, f1)
     pickle.dump(y_train, f1)
     f1.close()
 
-    f2 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/validation", "wb")
+    f2 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/validation_256", "wb")
     pickle.dump(X_val, f2)
     pickle.dump(y_val, f2)
     f2.close()
