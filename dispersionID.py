@@ -93,26 +93,32 @@ def shuffle_in_unison(X, y):
 ##
 """ Import the labeled data set"""
 
-f1 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/train", "rb")
+f1 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/train_256", "rb")
 X_train = pickle.load(f1)
 y_train = pickle.load(f1)
 f1.close()
 
-f2 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/validation", "rb")
+f2 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/validation_256", "rb")
 X_val = pickle.load(f2)
 y_val = pickle.load(f2)
 f2.close()
 
-f3 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/noise/noise", "rb")
+f3 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/data/noise/noise_256", "rb")
 X_noise = pickle.load(f3)
 y_noise = pickle.load(f3)
 y_noise = y_noise.astype(int)
 f3.close()
 
+f4 = open("C:/Users/mgoldwater/Desktop/WHOI Storage/scan_results/hard_negative_mining/hard_negatives", "rb")
+X_hard_negs = pickle.load(f4)
+y_hard_negs = pickle.load(f4)
+f4.close()
+
 # Add channel dimension
 X_train = X_train[:, :, :, np.newaxis]
 X_val = X_val[:, :, :, np.newaxis]
 X_noise = X_noise[:, :, :, np.newaxis]
+X_hard_negs = X_hard_negs[:, :, :, np.newaxis]
 
 # Concatenate train, validation, and noise data because we're using K-fold cross validation
 X = np.concatenate((X_train, X_val, X_noise), axis=0)
@@ -132,7 +138,7 @@ plot_images(X[:9], y[:9], dim=(3, 3))
 
 """ Create large grid of images of a certain class"""
 
-class_num = class_names.index('noise')
+class_num = class_names.index('disp_2')
 class_grid(X, y, class_num)
 
 ##
@@ -169,7 +175,7 @@ models_per_fold = []
 """ Define model parameters """
 
 BATCH_SIZE = 32  # Number of training examples to process before updating model parameters
-IMG_SHAPE = 128  # Data consists of images 1024 X 632 pixels
+IMG_SHAPE = 256  # Data consists of images 1024 X 632 pixels
 NUM_FOLDS = 5
 
 ##
@@ -210,6 +216,7 @@ for train, val in kf.split(X):
         tf.keras.layers.Dropout(0.2),
 
         tf.keras.layers.Flatten(),
+        tf.keras.layers.Dropout(0.5),
         tf.keras.layers.Dense(1024, activation='relu'),
         tf.keras.layers.Dropout(0.5),
         tf.keras.layers.Dense(1024, activation='relu'),
@@ -235,7 +242,7 @@ for train, val in kf.split(X):
     # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_name, histogram_freq=10, write_images=True)
 
     # Train the model
-    EPOCHS = 50
+    EPOCHS = 100
     history = model.fit(
                 train_data_gen,
                 steps_per_epoch=int(np.ceil(len(train) / float(BATCH_SIZE))),
@@ -268,6 +275,7 @@ for train, val in kf.split(X):
 
     # Iterate fold number
     fold_no += 1
+    break
 
 # Provide average scores
 print("--------------------------------------------------------------------------------")
@@ -305,7 +313,7 @@ for i in range(len(history_per_fold)):
     plt.subplot(1, 2, 2)
     plt.plot(epochs_range, loss, '-o', label="Training Loss")
     plt.plot(epochs_range, val_loss, '-o', label="Validation Loss")
-    plt.legend(loc='lower right')
+    plt.legend(loc='upper right')
     plt.title('Training and Validation Loss')
     plt.show()
 ##
@@ -388,11 +396,11 @@ ax.set_xlabel("Predicted")
 # Define the model
 model = tf.keras.models.Sequential([
 
-    # tf.keras.layers.Conv2D(8, (9, 9), activation='relu', input_shape=(IMG_SHAPE, IMG_SHAPE, 1)),
+    # tf.keras.layers.Conv2D(8, (9, 9), activation='relu'),
     # tf.keras.layers.MaxPooling2D(2, 2),
     # tf.keras.layers.Dropout(0.2),
 
-    tf.keras.layers.Conv2D(16, (5, 5), activation='relu'),
+    tf.keras.layers.Conv2D(16, (5, 5), activation='relu', input_shape=(IMG_SHAPE, IMG_SHAPE, 1)),
     tf.keras.layers.MaxPooling2D(2, 2),
     tf.keras.layers.Dropout(0.2),
 
