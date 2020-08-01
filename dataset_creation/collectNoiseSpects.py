@@ -5,7 +5,7 @@ import utils.spect as spect
 import pickle
 
 # Constants
-DT = 0.634
+DT = 0.511
 NUM_CHANNELS = 6
 WINDOW_N = 31
 
@@ -42,7 +42,7 @@ while running:
     samples = samples_norm[starti:stopi, channel]
 
     # Create spectrogram
-    _, _, Zxx, fs = spect.my_stft(samples, Fs, WINDOW_N, window_overlap=5, NFFT=2 ** 8)
+    _, _, Zxx, fs = spect.my_stft(samples, Fs, WINDOW_N, window_overlap=2, NFFT=2 ** 9)
     Zxx = Zxx[round(Zxx.shape[0] / 2):, :]
     spectro = 10 * np.log10(np.abs(Zxx) ** 2)
     plt.imshow(spectro)
