@@ -10,7 +10,7 @@ import time
 import random
 import os
 
-model = tf.keras.models.load_model("C:/Users/mgoldwater/ssf_goldwater/models/hard_negative.h5",
+model = tf.keras.models.load_model("C:/Users/mgoldwater/ssf_goldwater/models/no_hard_negatives_130_L2_1596399856.h5",
                                     custom_objects={'KerasLayer': hub.KerasLayer})
 
 # Figure for plotting spectrograms
@@ -35,7 +35,7 @@ def remap(x, oldMin, oldMax, newMin, newMax):
     return x
 
 
-def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batches=None, step_size=2536, save_spects=False):
+def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batches=None, save_spects=False):
 
     """
     Applies a pre-trained Tensorflow/Keras model to an audio file to sort spectrograms of a shifting window
@@ -53,7 +53,7 @@ def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batc
     :param channel: Channel to scan
     :param log_name: Text string for the output CSV file
     :param batch_size: Size of group of spectrograms to apply to model to simultaneously
-    :param batches: Number of batches to process (processes the whole file if 'None'
+    :param batches: Number of batches to process (processes the whole file if 'None')
     :param step_size: Number of samples to shift in creating each spectrogram
     :param save_spects: If True, the function will save off reference images for dispersively-classified spectrograms
     :return: None
@@ -61,7 +61,7 @@ def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batc
 
     # Create file to store discovered dispersive curves
     calls_CSV_path = os.path.join(write_path, log_name + ".csv")
-    columns = ['File', 'StartSample', 'EndSample', 'Channel', 'Prob']
+    columns = ['File', 'StartSample', 'EndSample', 'Channel', 'Prob', 'DecFactor', 'StepSize']
     if os.path.exists(calls_CSV_path):
         calls_df = pd.read_csv(calls_CSV_path)
         row_count = len(calls_df)
@@ -70,11 +70,24 @@ def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batc
         row_count = 0
 
     # Get audio file name
-    file = data_path.split("/")[-1]
+    file = data_path  # data_path.split("\\")[-1]
 
     # Load the sound file
     Fs_original, samples_norm = spect.get_and_normalize_sound(data_path)
+
+    # Append channel dimension if none already
+    if len(samples_norm.shape) == 1:
+        samples_norm = samples_norm[:, np.newaxis]
+
+    # Calculate appropriate decimation factor
+    if Fs_original % 1000 == 0:
+        decimate_factor = Fs_original // 1000
+    else:
+        decimate_factor = int(Fs_original / 1000)
+
+    # Start at beginning of file
     start_sample = 0
+    step_size = round(Fs_original * 0.634)
 
     # Process all the batches
     if batches is None:
@@ -91,9 +104,14 @@ def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batc
 
             # Calculate spectrogram
             samples = samples_norm[start_sample:end_sample, channel - 1]
-            times, freq, Zxx, _ = spect.my_stft(samples, Fs_original, window_N=31, window_overlap=5, NFFT=2 ** 8)
+            times, freq, Zxx, _ = spect.my_stft(samples, Fs_original, window_N=31, window_overlap=5, NFFT=2 ** 8, DECIMATE_FACTOR=decimate_factor)
             Zxx = Zxx[round(Zxx.shape[0] / 2):, :]
             spectro = 10 * np.log10(np.abs(Zxx) ** 2)
+
+            # Cut off trailing end of spectrogram if decimate factor was rounded
+            length = spectro.shape[1]
+            if length != 128:
+                spectro = spectro[:, :length - (length - 128)]
 
             X.append(spectro)
             indices.append((start_sample, end_sample))
@@ -124,7 +142,7 @@ def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batc
 
         # Populate df and save reference spectrograms
         for sample in range(len(disp_indices)):
-            row = [file, disp_indices[sample][0], disp_indices[sample][1], channel, probs[sample, 1]]
+            row = [file, disp_indices[sample][0], disp_indices[sample][1], channel, probs[sample, 1], decimate_factor, step_size]
             calls_df.loc[row_count] = row
 
             if save_spects:
