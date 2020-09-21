@@ -30,14 +30,19 @@ channel | The channel of the audio file to analyze | Yes
 log_name | Name to give to the output CSV file | Yes
 batch_size | The number of spectrograms to be simultaneously classified by the model | No (default 50)
 batches | The number of batches to process from the provided audio file | No (will process the whole file if no argument provided)
-step_size | The number of samples to shift window by when collecting spectrograms | No (default 2356)
 save_spects | Boolean flag to enable saving reference images of spectrograms identified to be a gunshot call with at least two modes | No (default False)
 
-An example of how to call the function with default optional parameters is as follows:
+### Steps To Use
 
-```python
-scan_audiofile("C:/Users/jdoe/Desktop/audiofiles", "C:/Users/jdoe/Desktop/outputfiles", 1, "Southern_right_whale_gunshots")
-```
+1. Clone the ssf_goldwater GitHub repository onto your computer.
+2. Create a new Python script and import the function `scan_audiofile` which is used to scan new audio data. If the new Python file
+is in the same directory as the cloned repository, this can be done by typing the following at the top of the new script: 
+    
+    ```from ssf_goldwater.utils.scanData import scan_audiofile```
+3. Look at the required parameters above and make sure that you are able to fill those in which you need for your application.
+Below is a sample call of the function:
+
+    ```scan_audiofile("C:/Users/jdoe/Desktop/audiofiles", "C:/Users/jdoe/Desktop/outputfiles", 1, "Southern_right_whale_gunshots")```
 
 ## Development
 
