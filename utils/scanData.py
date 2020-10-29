@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow_hub as hub
-# import matplotlib
-# matplotlib.use('Agg')
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import utils.spect as spect
 import pandas as pd
@@ -63,7 +63,7 @@ def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batc
     calls_CSV_path = os.path.join(write_path, log_name + ".csv")
     columns = ['File', 'StartSample', 'EndSample', 'Channel', 'Prob', 'DecFactor', 'StepSize']
     if os.path.exists(calls_CSV_path):
-        calls_df = pd.read_csv(calls_CSV_path)
+        calls_df = pd.read_csv(calls_CSV_path, index_col=[0])
         row_count = len(calls_df)
     else:
         calls_df = pd.DataFrame(columns=columns)
@@ -133,8 +133,8 @@ def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batc
         probs = tf.keras.activations.softmax(tf.constant(result_batch))
 
         # Get indices and spectrograms for dispersive calls with at least two modes
-        disp_indices = indices[y_pred == 1]
-        disp_X = X[y_pred == 1]
+        disp_indices = indices[y_pred != 1]
+        disp_X = X[y_pred != 1]
 
         # Get indices for the probabilities of dispersive calls
         probs = probs.numpy()
@@ -170,7 +170,7 @@ def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batc
         print("File: {} -- Channel: {} -- Batch: {}/{}".format(file, channel, batch + 1, batches))
 
     # Save as CSV
-    calls_df.to_csv(calls_CSV_path, index=False)
+    calls_df.to_csv(calls_CSV_path)
 
 
 # TODO: Finish implementation of this function
