@@ -139,6 +139,14 @@ plot_images(X[:9], y[:9], dim=(3, 3))
 """ Create large grid of images of a certain class"""
 
 class_num = class_names.index('disp_2')
+
+plt.subplot(1, 3, 1)
+class_grid(X, y, class_num)
+
+plt.subplot(1, 3, 2)
+class_grid(X, y, class_num)
+
+plt.subplot(1, 3, 3)
 class_grid(X, y, class_num)
 
 ##
@@ -175,7 +183,7 @@ models_per_fold = []
 """ Define model parameters """
 
 BATCH_SIZE = 32  # Number of training examples to process before updating model parameters
-IMG_SHAPE = 256  # Data consists of images 1024 X 632 pixels
+IMG_SHAPE = 128  # Data consists of images 1024 X 632 pixels
 NUM_FOLDS = 5
 
 ##
@@ -216,7 +224,6 @@ for train, val in kf.split(X):
         tf.keras.layers.Dropout(0.2),
 
         tf.keras.layers.Flatten(),
-        tf.keras.layers.Dropout(0.5),
         tf.keras.layers.Dense(1024, activation='relu'),
         tf.keras.layers.Dropout(0.5),
         tf.keras.layers.Dense(1024, activation='relu'),
@@ -275,7 +282,6 @@ for train, val in kf.split(X):
 
     # Iterate fold number
     fold_no += 1
-    break
 
 # Provide average scores
 print("--------------------------------------------------------------------------------")
@@ -385,9 +391,14 @@ confusion_mtx = confusion_matrix(val_set_lbls, y_pred)
 
 plt.figure(figsize=(10, 8))
 ax = plt.axes()
-sns.heatmap(confusion_mtx, annot=True, fmt="d", ax=ax)
-ax.set_ylabel("Actual")
-ax.set_xlabel("Predicted")
+categories = ['1 modes', '≥ 2 modes', 'no call']
+sns.heatmap(cm, annot=True, fmt="d", ax=ax, transparent=True)
+ax.set_xticklabels(categories, rotation=45, size=13)
+ax.set_yticklabels(categories, rotation=45, size=13)
+# ax.xaxis.labelpad = 15
+# ax.yaxis.labelpad = 15
+# ax.set_ylabel("Actual")
+# ax.set_xlabel("Predicted")
 
 ##
 
