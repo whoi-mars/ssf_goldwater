@@ -62,6 +62,11 @@ required arguments:
                         Audio channel to scan
 ```
 
+### Custom Script
+
+If you wish to write your own code to apply the classifier an example that scans all the audiofiles in a given directory
+is in the `/Examples/scanDirectory.py`. 
+
 ## Development
 
 Development of the CNN is on the `dev` branch of the repository in the file `dispersionID.py` and a structure for testing the CNN on data using the 
