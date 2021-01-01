@@ -28,6 +28,7 @@ from utils.scanData import scan_audiofile
 
 # Scan audio
 for file in audio_files:
-    FILE_PATH = os.path.join(DATA_PATH, file)
-    scan_audiofile(data_path=FILE_PATH, write_path=args.write_path, channel=args.channel, log_name=log_name,
-                   batch_size=batch_size, batches=args.batches, save_spects=args.images)
+    if file.split('.')[-1] == 'wav':
+        FILE_PATH = os.path.join(DATA_PATH, file)
+        scan_audiofile(data_path=FILE_PATH, write_path=args.write_path, channel=args.channel, log_name=log_name,
+                       batch_size=batch_size, batches=args.batches, save_spects=args.images)
