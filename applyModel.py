@@ -1,8 +1,10 @@
 ##
 
 """ Import libraries """
-from utils.scanData import scan_audiofile
+#from utils.scanData import scan_audiofile
 from utils.falseNegativeCount import countFN
+#import matplotlib
+#matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import utils.spect as spect
 import pickle
@@ -40,15 +42,15 @@ def plot_grid(X):
 #                          "acoustic data",
 #                          "multichannel_wav_1h")
 
-DATA_PATH = os.path.join("C:/Users/mgoldwater/Desktop/WHOI Storage/data/M2_Right_GunshotSong")
+DATA_PATH = os.path.join("E:/2018_sambay/deployment1/1073774637")
 
 # Get list of audio file names
 audio_files = os.listdir(DATA_PATH)
 
 # Directory where results should be stored
-WRITE_PATH = "C:/Users/mgoldwater/Desktop" #/WHOI Storage/scan_results/NPRW/NoThresh/TN-FN"
+WRITE_PATH = "C:/Users/mgoldwater/Desktop/JASASAMBAY"
 
-csv_name = "M2_Right_GunshotSong"
+csv_name = "results"
 ##
 
 """ Load model and training data mean and process data """
@@ -100,9 +102,9 @@ X = np.asarray(X)
 
 ##
 
-countFN(X, 25400, 25496, os.path.join(WRITE_PATH, csv_name + ".csv"))
-#plot_grid(X[:91])
-#plt.imshow(X[693])
+#countFN(X, 25400, 25496, os.path.join(WRITE_PATH, csv_name + ".csv"))
+plot_grid(X[340:])
+#plt.imshow(X[0])
 
 ##
 
