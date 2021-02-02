@@ -107,6 +107,7 @@ def scan_audiofile(data_path, write_path, channel, log_name='results.csv', batch
             samples = samples_norm[start_sample:end_sample, channel - 1]
             times, freq, Zxx, _ = spect.my_stft(samples, Fs_original, window_N=31, window_overlap=5, NFFT=2 ** 8, DECIMATE_FACTOR=decimate_factor)
             Zxx = Zxx[round(Zxx.shape[0] / 2):, :]
+            freq = freq[:round(len(freq)/2)]
             spectro = 10 * np.log10(np.abs(Zxx) ** 2)
 
             # Cut off trailing end of spectrogram if decimate factor was rounded
