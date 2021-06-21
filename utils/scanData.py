@@ -106,6 +106,7 @@ def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batc
             samples = samples_norm[start_sample:end_sample, channel - 1]
             times, freq, Zxx, _ = spect.my_stft(samples, Fs_original, window_N=31, window_overlap=5, NFFT=2 ** 8, DECIMATE_FACTOR=decimate_factor)
             Zxx = Zxx[round(Zxx.shape[0] / 2):, :]
+            freq = freq[:round(len(freq)/2)]
             spectro = 10 * np.log10(np.abs(Zxx) ** 2)
 
             # Cut off trailing end of spectrogram if decimate factor was rounded
@@ -133,8 +134,8 @@ def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batc
         probs = tf.keras.activations.softmax(tf.constant(result_batch))
 
         # Get indices and spectrograms for dispersive calls with at least two modes
-        disp_indices = indices[y_pred != 1]
-        disp_X = X[y_pred != 1]
+        disp_indices = indices[y_pred == 1]
+        disp_X = X[y_pred == 1]
 
         # Get indices for the probabilities of dispersive calls
         probs = probs.numpy()
@@ -171,92 +172,3 @@ def scan_audiofile(data_path, write_path, channel, log_name, batch_size=50, batc
 
     # Save as CSV
     calls_df.to_csv(calls_CSV_path)
-
-
-# TODO: Finish implementation of this function
-def scan_audiofile_multiprocess(data_path, write_path, channel, log_name, batch_size=50, batches=None, step_size=6000):
-
-    """
-    Applies a pre-trained Tensorflow/Keras model to an audio file to sort spectrograms of a shifting window
-    into the following classes:
-
-        0) At least 2 modes present
-        1) Less than two modes present
-        2) No call
-
-    Spectrograms labeled in the "1" class are logged in a CSV file. This function is meant to be used in multithreading
-    or with multiple processes.
-
-
-    :param data_path: Path to folder where audio data is
-    :param write_path: Path to where the output CSV is to be written
-    :param channel: Channel to scan
-    :param log_name: Text string for the output CSV file
-    :param batch_size: Size of group of spectrograms to apply to model to simultaneously
-    :param batches: Number of batches to process (processes the whole file if 'None'
-    :param step_size: Number of samples to shift in creating each spectrogram
-    :return: None
-    """
-
-    # Random wait
-    time.sleep(0.5*random.random())
-
-    # Create file to store discovered dispersive curves
-    columns = ['File', 'StartSample', 'EndSample', 'Channel']
-    calls_df = pd.DataFrame(columns=columns)
-    row_count = 0
-
-    # Get audio file name
-    file = data_path.split('/')[-1]
-
-    # Load the sound file
-    Fs_original, samples_norm = spect.get_and_normalize_sound(data_path)
-    start_sample = 0
-
-    # Process all the batches
-    if batches is None:
-        batches = int(len(samples_norm - round(Fs_original * 0.634))/(batch_size*step_size))
-    for batch in range(batches):
-        # Store images collected in batch
-        X = []
-        indices = []
-        for example in range(batch_size):
-            # Start and end sample of a given spectrogram
-            end_sample = start_sample + round(Fs_original * 0.634)
-
-            # Calculate spectrogram
-            samples = samples_norm[start_sample:end_sample, channel - 1]
-            _, _, Zxx, _ = spect.my_stft(samples, Fs_original, window_N=31, window_overlap=5, NFFT=2 ** 8)
-            Zxx = Zxx[round(Zxx.shape[0] / 2):, :]
-            spectro = 10 * np.log10(np.abs(Zxx) ** 2)
-
-            X.append(spectro)
-            indices.append((start_sample, end_sample))
-
-            # Iterate start_sample
-            start_sample += step_size
-
-        # Process batch with model
-        X = np.asarray(X)[:, :, :, np.newaxis]
-        indices = np.asarray(indices)
-
-        for i in range(len(X)):
-            # rescale
-            X[i] = X[i] = remap(X[i], np.min(X[i]), np.max(X[i]), 0, 1)
-
-        # Apply the model
-        result_batch = model.predict(X)
-        y_pred = np.argmax(result_batch, axis=1)
-
-        # Get indices for dispersive calls with at least two modes
-        disp_indices = indices[y_pred == 1]
-
-        # Populate df
-        for indices in disp_indices:
-            row = [file, indices[0], indices[1], channel]
-            calls_df.loc[row_count] = row
-            row_count += 1
-
-        print("File: {} -- Channel: {} -- Batch: {}/{}".format(file, channel, batch + 1, batches))
-
-    return calls_df
