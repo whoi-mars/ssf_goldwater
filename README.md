@@ -72,3 +72,19 @@ is in the `/Examples/scanDirectory.py`.
 Development of the CNN is on the `dev` branch of the repository in the file `dispersionID.py` and a structure for testing the CNN on data using the 
 `scan_audofile` function is in the file `applyModel.py`. Both files are well-commented and were developed in PyCharm using the 
 Cell Mode plugin which provides a Jupyter-Notebook-like coding environment.
+
+## Reference
+
+If you found this code useful, please cite our paper [here](https://asa.scitation.org/doi/10.1121/10.0006718)
+```bibtex
+@article{goldwater2021dispersive,
+  author = {Goldwater,Mark  and Bonnel,Julien  and Cammareri,Alejandro  and Wright,Dana  and Zitterbart,Daniel P. },
+  title = {Classification of dispersive gunshot calls using a convolutional neural network},
+  journal = {JASA Express Letters},
+  volume = {1},
+  number = {10},
+  pages = {106002},
+  year = {2021},
+  doi = {10.1121/10.0006718}
+}
+```
